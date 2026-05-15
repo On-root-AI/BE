@@ -1,6 +1,7 @@
 package com.OnRoot.onroot.global.client;
 
 import com.OnRoot.onroot.domain.examschedule.entity.ExamSchedule;
+import com.OnRoot.onroot.global.parser.ExamCodeParser;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -18,13 +19,17 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Component
 public class QNetApiClient {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
+    private static final Pattern ROUND_PATTERN = Pattern.compile("제(\\d+회)");
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -42,64 +47,121 @@ public class QNetApiClient {
         this.serviceKey = serviceKey;
     }
 
-    public List<ExamSchedule> fetchAll() {
+    public List<ExamSchedule> fetchAllWithExamNames(Map<String, List<ExamCodeParser.ExamInfo>> examsBySeries) {
         List<ExamSchedule> result = new ArrayList<>();
-        result.addAll(fetch("getEList", "기사/산업기사"));
-        result.addAll(fetch("getPEList", "기술사"));
+        result.addAll(buildSchedulesForSeries("getEList", "기사", examsBySeries));
+        result.addAll(buildSchedulesForSeries("getPEList", "기술사", examsBySeries));
         return result;
     }
 
-    private List<ExamSchedule> fetch(String endpoint, String defaultSubject) {
-        String url = baseUrl + "/" + endpoint + "?serviceKey=" + serviceKey;
+    private List<ExamSchedule> buildSchedulesForSeries(
+            String endpoint, String seriesName,
+            Map<String, List<ExamCodeParser.ExamInfo>> examsBySeries) {
 
+        List<RoundSchedule> rounds = fetchRounds(endpoint);
+        List<ExamCodeParser.ExamInfo> exams = examsBySeries.getOrDefault(seriesName, List.of());
+
+        if (rounds.isEmpty() || exams.isEmpty()) {
+            log.warn("{} 일정 데이터 없음: rounds={}, exams={}", seriesName, rounds.size(), exams.size());
+            return List.of();
+        }
+
+        List<ExamSchedule> result = new ArrayList<>();
+        for (RoundSchedule round : rounds) {
+            String roundLabel = extractRoundLabel(round.description());
+            for (ExamCodeParser.ExamInfo exam : exams) {
+                LocalDate docDate = parseDate(round.docExamDt());
+                if (docDate != null) {
+                    result.add(ExamSchedule.builder()
+                            .examName(exam.jmfldnm() + " 필기 " + roundLabel)
+                            .subject(exam.jmfldnm())
+                            .applicationStart(parseDate(round.docRegStartDt()))
+                            .applicationEnd(parseDate(round.docRegEndDt()))
+                            .examDate(docDate)
+                            .resultDate(parseDate(round.docPassDt()))
+                            .build());
+                }
+
+                LocalDate pracDate = parseDate(round.pracExamStartDt());
+                if (pracDate != null) {
+                    result.add(ExamSchedule.builder()
+                            .examName(exam.jmfldnm() + " 실기 " + roundLabel)
+                            .subject(exam.jmfldnm())
+                            .applicationStart(parseDate(round.pracRegStartDt()))
+                            .applicationEnd(parseDate(round.pracRegEndDt()))
+                            .examDate(pracDate)
+                            .resultDate(parseDate(round.pracPassDt()))
+                            .build());
+                }
+            }
+        }
+
+        log.info("{} 시험일정 생성: {}건 ({}개 종목 × {}회차)",
+                seriesName, result.size(), exams.size(), rounds.size());
+        return result;
+    }
+
+    private record RoundSchedule(
+            String description,
+            long docExamDt, long docRegStartDt, long docRegEndDt, long docPassDt,
+            long pracExamStartDt, long pracRegStartDt, long pracRegEndDt, long pracPassDt
+    ) {}
+
+    private List<RoundSchedule> fetchRounds(String endpoint) {
+        String url = baseUrl + "/" + endpoint + "?serviceKey=" + serviceKey;
         HttpHeaders headers = new HttpHeaders();
         headers.setAccept(List.of(MediaType.APPLICATION_JSON));
         headers.set("Connection", "close");
         HttpEntity<Void> entity = new HttpEntity<>(headers);
 
-        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
-        String body = response.getBody();
-        return parseJson(body, defaultSubject);
+        try {
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+            return parseRounds(response.getBody());
+        } catch (Exception e) {
+            log.error("Q-Net {} 호출 실패: {}", endpoint, e.getMessage());
+            return List.of();
+        }
     }
 
-    private List<ExamSchedule> parseJson(String json, String defaultSubject) {
-        List<ExamSchedule> schedules = new ArrayList<>();
+    private List<RoundSchedule> parseRounds(String json) {
+        List<RoundSchedule> rounds = new ArrayList<>();
         Set<String> seen = new HashSet<>();
 
         try {
             JsonNode root = objectMapper.readTree(json);
             JsonNode items = root.path("response").path("body").path("items").path("item");
-
-            if (items.isMissingNode()) return schedules;
+            if (items.isMissingNode()) return rounds;
 
             Iterable<JsonNode> itemList = items.isArray() ? items : List.of(items);
-
             for (JsonNode item : itemList) {
                 String description = item.path("description").asText();
-                String examDateStr = String.valueOf(item.path("docexamdt").asLong());
+                long docExamDt = item.path("docexamdt").asLong();
+                String key = description + "_" + docExamDt;
+                if (seen.contains(key)) continue;
+                seen.add(key);
 
-                String dedupeKey = description + "_" + examDateStr;
-                if (seen.contains(dedupeKey)) continue;
-                seen.add(dedupeKey);
-
-                String subject = description.contains("(")
-                        ? description.substring(0, description.indexOf("(")).trim()
-                        : defaultSubject;
-
-                schedules.add(ExamSchedule.builder()
-                        .examName(description)
-                        .subject(subject)
-                        .applicationStart(parseDate(item.path("docregstartdt").asLong()))
-                        .applicationEnd(parseDate(item.path("docregenddt").asLong()))
-                        .examDate(parseDate(item.path("docexamdt").asLong()))
-                        .resultDate(parseDate(item.path("docpassdt").asLong()))
-                        .build());
+                rounds.add(new RoundSchedule(
+                        description,
+                        docExamDt,
+                        item.path("docregstartdt").asLong(),
+                        item.path("docregenddt").asLong(),
+                        item.path("docpassdt").asLong(),
+                        item.path("pracexamstartdt").asLong(),
+                        item.path("pracregstartdt").asLong(),
+                        item.path("pracregenddt").asLong(),
+                        item.path("pracpassdt").asLong()
+                ));
             }
         } catch (Exception e) {
-            throw new RuntimeException("Q-Net API 응답 파싱 실패", e);
+            throw new RuntimeException("Q-Net 응답 파싱 실패", e);
         }
 
-        return schedules;
+        return rounds;
+    }
+
+    private String extractRoundLabel(String description) {
+        Matcher m = ROUND_PATTERN.matcher(description);
+        return m.find() ? m.group(1) : description;
     }
 
     private LocalDate parseDate(long value) {
