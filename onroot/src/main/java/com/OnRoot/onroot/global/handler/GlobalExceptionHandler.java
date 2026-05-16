@@ -6,12 +6,14 @@ import com.OnRoot.onroot.global.exception.ExternalServiceException;
 import com.OnRoot.onroot.global.exception.NotFoundException;
 import com.OnRoot.onroot.global.exception.UnauthorizedException;
 import com.OnRoot.onroot.global.response.ErrorResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -58,6 +60,7 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     @ExceptionHandler(Exception.class)
     public ErrorResponse handleException(Exception e) {
+        log.error("Unhandled exception", e);
         return new ErrorResponse("서버 내부 오류가 발생했습니다.");
     }
 }
