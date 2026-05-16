@@ -5,7 +5,6 @@ import com.OnRoot.onroot.domain.examschedule.entity.ExamSchedule;
 import com.OnRoot.onroot.domain.examschedule.repository.ExamScheduleRepository;
 import com.OnRoot.onroot.domain.plan.repository.PlanRepository;
 import com.OnRoot.onroot.global.client.QNetApiClient;
-import com.OnRoot.onroot.global.client.QualExamSchdApiClient;
 import com.OnRoot.onroot.global.parser.ExamCodeParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,25 +21,13 @@ public class ExamScheduleService {
 
     private final ExamScheduleRepository examScheduleRepository;
     private final PlanRepository planRepository;
-    private final QualExamSchdApiClient qualExamSchdApiClient;
     private final QNetApiClient qNetApiClient;
     private final ExamCodeParser examCodeParser;
 
     @Transactional
     public void sync() {
-        List<ExamSchedule> schedules;
-        try {
-            Map<String, List<ExamCodeParser.ExamInfo>> examsBySeries = examCodeParser.loadBySeriesName();
-            schedules = qNetApiClient.fetchAllWithExamNames(examsBySeries);
-        } catch (Exception e) {
-            log.error("Q-Net 종목별 일정 로드 실패", e);
-            schedules = List.of();
-        }
-
-        if (schedules.isEmpty()) {
-            log.warn("종목별 일정 없음 → data.go.kr 카테고리 레벨 폴백");
-            schedules = qualExamSchdApiClient.fetchAll();
-        }
+        Map<String, List<ExamCodeParser.ExamInfo>> examsBySeries = examCodeParser.loadBySeriesName();
+        List<ExamSchedule> schedules = qNetApiClient.fetchAllWithExamNames(examsBySeries);
 
         planRepository.clearExamScheduleReferences();
         examScheduleRepository.deleteAll();
