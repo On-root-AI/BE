@@ -107,30 +107,51 @@ public class QNetApiClient {
             long pracExamStartDt, long pracRegStartDt, long pracRegEndDt, long pracPassDt
     ) {}
 
+    private static final int PAGE_SIZE = 100;
+
     private List<RoundSchedule> fetchRounds(String endpoint) {
-        String url = baseUrl + "/" + endpoint + "?serviceKey=" + serviceKey;
         HttpHeaders headers = new HttpHeaders();
         headers.setAccept(List.of(MediaType.APPLICATION_JSON));
         headers.set("Connection", "close");
         HttpEntity<Void> entity = new HttpEntity<>(headers);
 
+        List<RoundSchedule> all = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        int pageNo = 1;
+        int totalCount = Integer.MAX_VALUE;
+
         try {
-            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
-            return parseRounds(response.getBody());
+            while (all.size() < totalCount) {
+                String url = baseUrl + "/" + endpoint
+                        + "?serviceKey=" + serviceKey
+                        + "&numOfRows=" + PAGE_SIZE
+                        + "&pageNo=" + pageNo;
+
+                ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+                PageResult result = parseRoundsPage(response.getBody(), seen);
+                totalCount = result.totalCount();
+                all.addAll(result.rounds());
+
+                if (result.rounds().isEmpty()) break;
+                pageNo++;
+            }
         } catch (Exception e) {
             log.error("Q-Net {} 호출 실패: {}", endpoint, e.getMessage());
-            return List.of();
         }
+
+        log.info("Q-Net {} 회차 조회 완료: {}건 (전체 {}건)", endpoint, all.size(), totalCount);
+        return all;
     }
 
-    private List<RoundSchedule> parseRounds(String json) {
-        List<RoundSchedule> rounds = new ArrayList<>();
-        Set<String> seen = new HashSet<>();
+    private record PageResult(List<RoundSchedule> rounds, int totalCount) {}
 
+    private PageResult parseRoundsPage(String json, Set<String> seen) {
+        List<RoundSchedule> rounds = new ArrayList<>();
         try {
             JsonNode root = objectMapper.readTree(json);
+            int totalCount = root.path("response").path("body").path("totalCount").asInt(0);
             JsonNode items = root.path("response").path("body").path("items").path("item");
-            if (items.isMissingNode()) return rounds;
+            if (items.isMissingNode()) return new PageResult(rounds, totalCount);
 
             Iterable<JsonNode> itemList = items.isArray() ? items : List.of(items);
             for (JsonNode item : itemList) {
@@ -152,11 +173,10 @@ public class QNetApiClient {
                         item.path("pracpassdt").asLong()
                 ));
             }
+            return new PageResult(rounds, totalCount);
         } catch (Exception e) {
             throw new RuntimeException("Q-Net 응답 파싱 실패", e);
         }
-
-        return rounds;
     }
 
     private String extractRoundLabel(String description) {
