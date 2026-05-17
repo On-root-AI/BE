@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -47,6 +48,11 @@ public class AiService {
             "소방설비기사", "소방설비기사",
             "건축기사", "건축기사",
             "토목기사", "토목기사"
+    );
+
+    private static final Set<String> GENERIC_TOKENS = Set.of(
+            "필기", "실기", "시험", "합격", "공부", "준비", "학습",
+            "평일", "주말", "하루", "시간", "개월", "안에", "이내", "이하"
     );
 
     private final UserRepository userRepository;
@@ -249,6 +255,7 @@ public class AiService {
         String[] tokens = userInput.split("[\\s,./]+");
         for (String token : tokens) {
             if (token.length() < 2) continue;
+            if (GENERIC_TOKENS.contains(token)) continue;
             String keyword = EXAM_ALIAS.getOrDefault(token, token);
             List<ExamSchedule> matches = examScheduleRepository
                     .findByExamNameContainingAndExamDateGreaterThanEqualOrderByExamDateAsc(keyword, LocalDate.now());

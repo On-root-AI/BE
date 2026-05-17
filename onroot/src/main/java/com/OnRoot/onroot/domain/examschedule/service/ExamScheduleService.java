@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -27,12 +28,23 @@ public class ExamScheduleService {
     @Transactional
     public void sync() {
         Map<String, List<ExamCodeParser.ExamInfo>> examsBySeries = examCodeParser.loadBySeriesName();
-        List<ExamSchedule> schedules = qNetApiClient.fetchAllWithExamNames(examsBySeries);
+
+        List<ExamSchedule> engineers = qNetApiClient.fetchEngineers(examsBySeries);
+        List<ExamSchedule> professionals = qNetApiClient.fetchProfessionals(examsBySeries);
+
+        List<ExamSchedule> all = new ArrayList<>();
+        all.addAll(engineers);
+        all.addAll(professionals);
+
+        if (all.isEmpty()) {
+            log.warn("시험 일정 fetch 결과 없음, 기존 데이터 유지");
+            return;
+        }
 
         planRepository.clearExamScheduleReferences();
         examScheduleRepository.deleteAll();
-        examScheduleRepository.saveAll(schedules);
-        log.info("시험 일정 동기화 완료: {}건 저장", schedules.size());
+        examScheduleRepository.saveAll(all);
+        log.info("시험 일정 동기화 완료: 기사 {}건, 기술사 {}건 저장", engineers.size(), professionals.size());
     }
 
     @Transactional(readOnly = true)

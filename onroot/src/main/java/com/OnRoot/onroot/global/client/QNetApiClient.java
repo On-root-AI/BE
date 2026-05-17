@@ -28,37 +28,37 @@ import java.util.regex.Pattern;
 @Component
 public class QNetApiClient {
 
+    private static final String QUAL_EXAM_URL = "http://apis.data.go.kr/B490007/qualExamSchd/getQualExamSchdList";
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final Pattern ROUND_PATTERN = Pattern.compile("제(\\d+회)");
+    private static final int PAGE_SIZE = 50;
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
-    private final String baseUrl;
     private final String serviceKey;
 
     public QNetApiClient(
             RestTemplate restTemplate,
             ObjectMapper objectMapper,
-            @Value("${qnet.api.base-url}") String baseUrl,
             @Value("${qnet.api.key}") String serviceKey) {
         this.restTemplate = restTemplate;
         this.objectMapper = objectMapper;
-        this.baseUrl = baseUrl;
         this.serviceKey = serviceKey;
     }
 
-    public List<ExamSchedule> fetchAllWithExamNames(Map<String, List<ExamCodeParser.ExamInfo>> examsBySeries) {
-        List<ExamSchedule> result = new ArrayList<>();
-        result.addAll(buildSchedulesForSeries("getEList", "기사", examsBySeries));
-        result.addAll(buildSchedulesForSeries("getPEList", "기술사", examsBySeries));
-        return result;
+    public List<ExamSchedule> fetchEngineers(Map<String, List<ExamCodeParser.ExamInfo>> examsBySeries) {
+        return buildSchedulesForSeries("기사", examsBySeries);
+    }
+
+    public List<ExamSchedule> fetchProfessionals(Map<String, List<ExamCodeParser.ExamInfo>> examsBySeries) {
+        return buildSchedulesForSeries("기술사", examsBySeries);
     }
 
     private List<ExamSchedule> buildSchedulesForSeries(
-            String endpoint, String seriesName,
+            String seriesName,
             Map<String, List<ExamCodeParser.ExamInfo>> examsBySeries) {
 
-        List<RoundSchedule> rounds = fetchRounds(endpoint);
+        List<RoundSchedule> rounds = fetchRoundsForSeries(seriesName);
         List<ExamCodeParser.ExamInfo> exams = examsBySeries.getOrDefault(seriesName, List.of());
 
         if (rounds.isEmpty() || exams.isEmpty()) {
@@ -82,7 +82,7 @@ public class QNetApiClient {
                             .build());
                 }
 
-                LocalDate pracDate = parseDate(round.pracExamStartDt());
+                LocalDate pracDate = parseDate(round.pracExamDt());
                 if (pracDate != null) {
                     result.add(ExamSchedule.builder()
                             .examName(exam.jmfldnm() + " 실기 " + roundLabel)
@@ -103,60 +103,86 @@ public class QNetApiClient {
 
     private record RoundSchedule(
             String description,
-            long docExamDt, long docRegStartDt, long docRegEndDt, long docPassDt,
-            long pracExamStartDt, long pracRegStartDt, long pracRegEndDt, long pracPassDt
+            String docExamDt, String docRegStartDt, String docRegEndDt, String docPassDt,
+            String pracExamDt, String pracRegStartDt, String pracRegEndDt, String pracPassDt
     ) {}
 
-    private static final int PAGE_SIZE = 100;
+    private List<RoundSchedule> fetchRoundsForSeries(String seriesName) {
+        int currentYear = LocalDate.now().getYear();
+        Set<String> seen = new HashSet<>();
+        List<RoundSchedule> all = new ArrayList<>();
 
-    private List<RoundSchedule> fetchRounds(String endpoint) {
+        for (int year = currentYear; year <= currentYear + 1; year++) {
+            all.addAll(fetchRoundsForYear(year, seriesName, seen));
+        }
+
+        log.info("{} 회차 조회 완료: {}건", seriesName, all.size());
+        return all;
+    }
+
+    private List<RoundSchedule> fetchRoundsForYear(int year, String seriesName, Set<String> seen) {
         HttpHeaders headers = new HttpHeaders();
         headers.setAccept(List.of(MediaType.APPLICATION_JSON));
         headers.set("Connection", "close");
         HttpEntity<Void> entity = new HttpEntity<>(headers);
 
-        List<RoundSchedule> all = new ArrayList<>();
-        Set<String> seen = new HashSet<>();
+        List<RoundSchedule> result = new ArrayList<>();
         int pageNo = 1;
+        int totalFetched = 0;
         int totalCount = Integer.MAX_VALUE;
 
         try {
-            while (all.size() < totalCount) {
-                String url = baseUrl + "/" + endpoint
+            while (totalFetched < totalCount) {
+                String url = QUAL_EXAM_URL
                         + "?serviceKey=" + serviceKey
                         + "&numOfRows=" + PAGE_SIZE
-                        + "&pageNo=" + pageNo;
+                        + "&pageNo=" + pageNo
+                        + "&dataFormat=json"
+                        + "&implYy=" + year
+                        + "&qualgbCd=T";
 
                 ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
-                PageResult result = parseRoundsPage(response.getBody(), seen);
-                totalCount = result.totalCount();
-                all.addAll(result.rounds());
+                PageResult pageResult = parsePage(response.getBody(), seriesName, seen);
+                totalCount = pageResult.totalCount();
+                result.addAll(pageResult.rounds());
+                totalFetched += pageResult.pageItemCount();
 
-                if (result.rounds().isEmpty()) break;
+                if (pageResult.pageItemCount() == 0) break;
                 pageNo++;
             }
         } catch (Exception e) {
-            log.error("Q-Net {} 호출 실패: {}", endpoint, e.getMessage());
+            log.error("Q-Net {} {}년 호출 실패: {}", seriesName, year, e.getMessage());
         }
 
-        log.info("Q-Net {} 회차 조회 완료: {}건 (전체 {}건)", endpoint, all.size(), totalCount);
-        return all;
+        return result;
     }
 
-    private record PageResult(List<RoundSchedule> rounds, int totalCount) {}
+    private record PageResult(List<RoundSchedule> rounds, int totalCount, int pageItemCount) {}
 
-    private PageResult parseRoundsPage(String json, Set<String> seen) {
+    private PageResult parsePage(String json, String seriesName, Set<String> seen) {
         List<RoundSchedule> rounds = new ArrayList<>();
         try {
             JsonNode root = objectMapper.readTree(json);
-            int totalCount = root.path("response").path("body").path("totalCount").asInt(0);
-            JsonNode items = root.path("response").path("body").path("items").path("item");
-            if (items.isMissingNode()) return new PageResult(rounds, totalCount);
 
-            Iterable<JsonNode> itemList = items.isArray() ? items : List.of(items);
-            for (JsonNode item : itemList) {
+            String resultCode = root.path("header").path("resultCode").asText();
+            if (!"00".equals(resultCode)) {
+                log.warn("API 오류 응답: {}", root.path("header").path("resultMsg").asText());
+                return new PageResult(rounds, 0, 0);
+            }
+
+            JsonNode body = root.path("body");
+            int totalCount = body.path("totalCount").asInt(0);
+            JsonNode items = body.path("items");
+
+            if (items.isMissingNode() || !items.isArray()) {
+                return new PageResult(rounds, totalCount, 0);
+            }
+
+            for (JsonNode item : items) {
                 String description = item.path("description").asText();
-                long docExamDt = item.path("docexamdt").asLong();
+                if (!description.contains("국가기술자격 " + seriesName)) continue;
+
+                String docExamDt = item.path("docExamStartDt").asText();
                 String key = description + "_" + docExamDt;
                 if (seen.contains(key)) continue;
                 seen.add(key);
@@ -164,18 +190,19 @@ public class QNetApiClient {
                 rounds.add(new RoundSchedule(
                         description,
                         docExamDt,
-                        item.path("docregstartdt").asLong(),
-                        item.path("docregenddt").asLong(),
-                        item.path("docpassdt").asLong(),
-                        item.path("pracexamstartdt").asLong(),
-                        item.path("pracregstartdt").asLong(),
-                        item.path("pracregenddt").asLong(),
-                        item.path("pracpassdt").asLong()
+                        item.path("docRegStartDt").asText(),
+                        item.path("docRegEndDt").asText(),
+                        item.path("docPassDt").asText(),
+                        item.path("pracExamStartDt").asText(),
+                        item.path("pracRegStartDt").asText(),
+                        item.path("pracRegEndDt").asText(),
+                        item.path("pracPassDt").asText()
                 ));
             }
-            return new PageResult(rounds, totalCount);
+
+            return new PageResult(rounds, totalCount, items.size());
         } catch (Exception e) {
-            throw new RuntimeException("Q-Net 응답 파싱 실패", e);
+            throw new RuntimeException("응답 파싱 실패", e);
         }
     }
 
@@ -184,8 +211,12 @@ public class QNetApiClient {
         return m.find() ? m.group(1) : description;
     }
 
-    private LocalDate parseDate(long value) {
-        if (value == 0) return null;
-        return LocalDate.parse(String.valueOf(value), DATE_FORMATTER);
+    private LocalDate parseDate(String value) {
+        if (value == null || value.isEmpty()) return null;
+        try {
+            return LocalDate.parse(value, DATE_FORMATTER);
+        } catch (Exception e) {
+            return null;
+        }
     }
 }
