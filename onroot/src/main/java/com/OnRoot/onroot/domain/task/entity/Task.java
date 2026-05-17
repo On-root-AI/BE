@@ -34,4 +34,14 @@ public class Task {
 
     @Column(name = "completed_at")
     private LocalDateTime completedAt;
+
+    public void update(String title, LocalDate scheduledDate, Integer orderIndex) {
+        if (title != null) this.title = title;
+        if (scheduledDate != null) this.scheduledDate = scheduledDate;
+        if (orderIndex != null) this.orderIndex = orderIndex;
+    }
+
+    public void complete(LocalDateTime completedAt) {
+        this.completedAt = completedAt;
+    }
 }
