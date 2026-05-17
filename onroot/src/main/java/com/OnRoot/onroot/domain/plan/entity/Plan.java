@@ -53,4 +53,11 @@ public class Plan {
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
+
+    public void update(String title, String category, LocalDate targetDate, PlanStatus status) {
+        if (title != null) this.title = title;
+        if (category != null) this.category = category;
+        if (targetDate != null) this.targetDate = targetDate;
+        if (status != null) this.status = status;
+    }
 }

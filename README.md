@@ -7,7 +7,7 @@ LLM 기반 자격증 학습 플래너 백엔드 서버
 - Java 21 / Spring Boot 3.5
 - MySQL / Spring Data JPA
 - Gemini API (Google AI)
-- Q-Net 공공데이터 API
+- Q-Net 공공데이터 API (apis.data.go.kr)
 - Swagger (SpringDoc)
 
 ## 로컬 실행 방법
@@ -50,19 +50,19 @@ CREATE DATABASE OnRoot CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 ### 시험 일정 동기화 (`POST /api/exam-schedules/sync`)
 
-Q-Net 공공데이터 API에서 자격증 시험 일정을 가져와 DB에 저장합니다.
+Q-Net 공공데이터 API(`getQualExamSchdList`)에서 기사·기술사 계열 자격증 시험 일정을 가져와 DB에 저장합니다.
 
 ```
-Q-Net API 호출
-  └── getEList  → 기사 계열 회차별 필기/실기 일정
-  └── getPEList → 기술사 계열 회차별 필기/실기 일정
+Q-Net API 호출 (apis.data.go.kr)
+  └── 기사 계열  → 올해/내년 필기·실기 회차별 일정
+  └── 기술사 계열 → 올해/내년 필기·실기 회차별 일정
         ↓
 ExamSchedule 테이블에 저장
   - examName: "정보처리기사 필기 3회"
   - examDate, applicationStart, applicationEnd, resultDate
 ```
 
-> 동기화 전 기존 Plan의 시험 일정 FK를 null로 초기화 후 전체 재저장합니다.
+> 각 계열 fetch가 실패해도 기존 데이터를 보존합니다 (빈 결과 시 저장 생략).
 
 ---
 
@@ -123,6 +123,58 @@ ExamSchedule 테이블에 저장
 | `평일 2시간 주말 5시간` | 2 | 5 |
 | `하루 3시간` | 3 | 3 |
 | (미입력) | 2 | 2 |
+
+---
+
+### 플랜 관리
+
+AI가 생성한 학습 계획을 조회·수정·삭제합니다.
+
+| 메서드 | 경로 | 설명 |
+|---|---|---|
+| GET | `/api/plans` | 플랜 목록 조회 (생성일 내림차순) |
+| GET | `/api/plans/{planId}` | 플랜 상세 + 태스크 목록 조회 |
+| PATCH | `/api/plans/{planId}` | 플랜 부분 수정 (title, category, targetDate, status) |
+| DELETE | `/api/plans/{planId}` | 플랜 삭제 |
+
+**status 가능 값**: `IN_PROGRESS` / `COMPLETED` / `ABANDONED`
+
+---
+
+### 태스크 관리
+
+플랜에 속한 일별 학습 태스크를 생성·조회·수정·완료 처리합니다.
+
+| 메서드 | 경로 | 설명 |
+|---|---|---|
+| POST | `/api/plans/{planId}/tasks` | 태스크 생성 |
+| GET | `/api/plans/{planId}/tasks` | 태스크 목록 조회 (orderIndex 오름차순) |
+| PATCH | `/api/plans/{planId}/tasks/{taskId}` | 태스크 수정 |
+| PATCH | `/api/plans/{planId}/tasks/{taskId}/complete` | 태스크 완료 처리 (`completedAt` 기록) |
+| DELETE | `/api/plans/{planId}/tasks/{taskId}` | 태스크 삭제 |
+
+---
+
+### D-Day 관리
+
+시험·이벤트 D-Day를 등록하고 남은 일수를 실시간으로 확인합니다.
+
+| 메서드 | 경로 | 설명 |
+|---|---|---|
+| POST | `/api/ddays` | D-Day 생성 |
+| GET | `/api/ddays` | D-Day 목록 조회 (목표일 오름차순) |
+| PATCH | `/api/ddays/{ddayId}` | D-Day 수정 |
+| DELETE | `/api/ddays/{ddayId}` | D-Day 삭제 |
+
+응답의 `dDay` 필드는 오늘 기준 남은 일수입니다. 양수면 미래, 음수면 경과입니다.
+
+---
+
+### 스트릭 조회
+
+| 메서드 | 경로 | 설명 |
+|---|---|---|
+| GET | `/api/streaks` | 현재 연속 학습 일수 및 마지막 활동일 조회 |
 
 ---
 
