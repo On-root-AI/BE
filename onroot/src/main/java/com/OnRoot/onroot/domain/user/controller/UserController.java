@@ -16,7 +16,9 @@ import com.OnRoot.onroot.domain.user.dto.LoginRequest;
 import com.OnRoot.onroot.domain.user.dto.SignupRequest;
 import com.OnRoot.onroot.domain.user.dto.UserResponse;
 import com.OnRoot.onroot.domain.user.dto.UserUpdateRequest;
+import com.OnRoot.onroot.domain.user.entity.User;
 import com.OnRoot.onroot.domain.user.service.UserService;
+import com.OnRoot.onroot.global.exception.UnauthorizedException;
 import com.OnRoot.onroot.global.response.ErrorResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -66,22 +68,26 @@ public class UserController {
         @Operation(summary = "내 정보 조회", description = "로그인한 사용자의 정보를 반환합니다.")
         @GetMapping("/me")
         public UserResponse getMe(Authentication auth) {
-                var user = (com.OnRoot.onroot.domain.user.entity.User) auth.getPrincipal();
-                return userService.getMe(user);
+                return userService.getMe(resolveAuthenticatedUser(auth));
         }
 
         @Operation(summary = "내 정보 수정", description = "로그인한 사용자의 닉네임을 수정합니다.")
         @PatchMapping("/me")
         public UserResponse updateMe(Authentication auth, @RequestBody UserUpdateRequest req) {
-                var user = (com.OnRoot.onroot.domain.user.entity.User) auth.getPrincipal();
-                return userService.updateMe(user, req);
+                return userService.updateMe(resolveAuthenticatedUser(auth), req);
         }
 
         @Operation(summary = "회원 탈퇴", description = "로그인한 사용자를 삭제합니다.")
         @DeleteMapping("/me")
         @ResponseStatus(HttpStatus.NO_CONTENT)
         public void deleteMe(Authentication auth) {
-                var user = (com.OnRoot.onroot.domain.user.entity.User) auth.getPrincipal();
-                userService.deleteMe(user);
+                userService.deleteMe(resolveAuthenticatedUser(auth));
+        }
+
+        private User resolveAuthenticatedUser(Authentication auth) {
+                if (auth == null || !(auth.getPrincipal() instanceof User user)) {
+                        throw new UnauthorizedException("로그인이 필요합니다.");
+                }
+                return user;
         }
 }

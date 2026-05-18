@@ -13,7 +13,9 @@ import com.OnRoot.onroot.domain.user.dto.UserResponse;
 import com.OnRoot.onroot.domain.user.dto.UserUpdateRequest;
 import com.OnRoot.onroot.domain.user.entity.User;
 import com.OnRoot.onroot.domain.user.repository.UserRepository;
+import com.OnRoot.onroot.global.exception.ConflictException;
 import com.OnRoot.onroot.global.exception.NotFoundException;
+import com.OnRoot.onroot.global.exception.UnauthorizedException;
 import com.OnRoot.onroot.global.security.JwtTokenProvider;
 
 import lombok.RequiredArgsConstructor;
@@ -29,7 +31,7 @@ public class UserService {
     @Transactional
     public void signup(SignupRequest request) {
         userRepository.findByEmail(request.email()).ifPresent(u -> {
-            throw new IllegalArgumentException("이미 사용중인 이메일입니다.");
+            throw new ConflictException("이미 사용중인 이메일입니다.");
         });
         User user = User.builder()
                 .email(request.email())
@@ -46,7 +48,7 @@ public class UserService {
         User user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new NotFoundException("사용자를 찾을 수 없습니다."));
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
-            throw new IllegalArgumentException("이메일 또는 비밀번호가 올바르지 않습니다.");
+            throw new UnauthorizedException("이메일 또는 비밀번호가 올바르지 않습니다.");
         }
         String token = jwtTokenProvider.createToken(user.getId(), user.getEmail());
         return AuthResponse.of(token);
