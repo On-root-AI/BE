@@ -1,8 +1,5 @@
 package com.OnRoot.onroot.global.config;
 
-import com.OnRoot.onroot.global.security.CustomAccessDeniedHandler;
-import com.OnRoot.onroot.global.security.CustomAuthenticationEntryPoint;
-import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -12,6 +9,13 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import com.OnRoot.onroot.global.security.CustomAccessDeniedHandler;
+import com.OnRoot.onroot.global.security.CustomAuthenticationEntryPoint;
+import com.OnRoot.onroot.global.security.JwtAuthenticationFilter;
+
+import lombok.RequiredArgsConstructor;
 
 @Configuration
 @EnableWebSecurity
@@ -20,6 +24,7 @@ public class SecurityConfig {
 
     private final CustomAuthenticationEntryPoint authenticationEntryPoint;
     private final CustomAccessDeniedHandler accessDeniedHandler;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -29,8 +34,6 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/users/signup", "/api/users/login", "/api/ai/generate",
-                                "/api/plans/**", "/api/ddays/**", "/api/streaks/**",
-                                "/api/exam-schedules/**",
                                 "/swagger-ui/**", "/v3/api-docs/**"
                         ).permitAll()
                         .anyRequest().authenticated()
@@ -38,7 +41,8 @@ public class SecurityConfig {
                 .exceptionHandling(exception -> exception
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler)
-                );
+                )
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
