@@ -12,7 +12,6 @@ import com.OnRoot.onroot.domain.plan.repository.PlanRepository;
 import com.OnRoot.onroot.domain.task.entity.Task;
 import com.OnRoot.onroot.domain.task.repository.TaskRepository;
 import com.OnRoot.onroot.domain.user.entity.User;
-import com.OnRoot.onroot.domain.user.repository.UserRepository;
 import com.OnRoot.onroot.global.client.GeminiApiClient;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -55,7 +54,6 @@ public class AiService {
             "평일", "주말", "하루", "시간", "개월", "안에", "이내", "이하"
     );
 
-    private final UserRepository userRepository;
     private final ExamScheduleRepository examScheduleRepository;
     private final PlanRepository planRepository;
     private final TaskRepository taskRepository;
@@ -67,10 +65,7 @@ public class AiService {
     private String llmModel;
 
     @Transactional
-    public AiGenerateResponse generate(AiGenerateRequest request) {
-        User user = userRepository.findById(1L)
-                .orElseThrow(() -> new IllegalStateException("더미 유저가 없습니다."));
-
+    public AiGenerateResponse generate(AiGenerateRequest request, User user) {
         LocalDate targetDate = extractTargetDate(request.userInput());
         int[] hours = extractAvailableHours(request.userInput());
         int weekdayHours = hours[0];

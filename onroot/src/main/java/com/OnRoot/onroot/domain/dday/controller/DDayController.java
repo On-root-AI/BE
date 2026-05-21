@@ -3,6 +3,7 @@ package com.OnRoot.onroot.domain.dday.controller;
 import com.OnRoot.onroot.domain.dday.dto.DDayRequest;
 import com.OnRoot.onroot.domain.dday.dto.DDayResponse;
 import com.OnRoot.onroot.domain.dday.service.DDayService;
+import com.OnRoot.onroot.domain.user.entity.User;
 import com.OnRoot.onroot.global.response.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -15,6 +16,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -48,7 +50,7 @@ public class DDayController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public DDayResponse createDDay(@Valid @RequestBody DDayRequest request) {
-        return ddayService.createDDay(request);
+        return ddayService.createDDay(request, getCurrentUser());
     }
 
     @Operation(
@@ -64,7 +66,7 @@ public class DDayController {
     })
     @GetMapping
     public List<DDayResponse> getDDays() {
-        return ddayService.getDDays();
+        return ddayService.getDDays(getCurrentUser());
     }
 
     @Operation(
@@ -88,7 +90,7 @@ public class DDayController {
     })
     @PatchMapping("/{ddayId}")
     public DDayResponse updateDDay(@PathVariable Long ddayId, @Valid @RequestBody DDayRequest request) {
-        return ddayService.updateDDay(ddayId, request);
+        return ddayService.updateDDay(ddayId, request, getCurrentUser());
     }
 
     @Operation(
@@ -109,6 +111,10 @@ public class DDayController {
     @DeleteMapping("/{ddayId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteDDay(@PathVariable Long ddayId) {
-        ddayService.deleteDDay(ddayId);
+        ddayService.deleteDDay(ddayId, getCurrentUser());
+    }
+
+    private User getCurrentUser() {
+        return (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
     }
 }

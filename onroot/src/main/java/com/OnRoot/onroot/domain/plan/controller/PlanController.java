@@ -12,9 +12,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import com.OnRoot.onroot.domain.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -40,7 +42,7 @@ public class PlanController {
     })
     @GetMapping
     public List<PlanResponse> getPlans() {
-        return planService.getPlans();
+        return planService.getPlans(getCurrentUser());
     }
 
     @Operation(
@@ -60,7 +62,7 @@ public class PlanController {
     })
     @GetMapping("/{planId}")
     public PlanDetailResponse getPlan(@PathVariable Long planId) {
-        return planService.getPlan(planId);
+        return planService.getPlan(planId, getCurrentUser());
     }
 
     @Operation(
@@ -81,7 +83,7 @@ public class PlanController {
     })
     @PatchMapping("/{planId}")
     public PlanResponse updatePlan(@PathVariable Long planId, @RequestBody PlanUpdateRequest request) {
-        return planService.updatePlan(planId, request);
+        return planService.updatePlan(planId, request, getCurrentUser());
     }
 
     @Operation(
@@ -102,6 +104,10 @@ public class PlanController {
     @DeleteMapping("/{planId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deletePlan(@PathVariable Long planId) {
-        planService.deletePlan(planId);
+        planService.deletePlan(planId, getCurrentUser());
+    }
+
+    private User getCurrentUser() {
+        return (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
     }
 }

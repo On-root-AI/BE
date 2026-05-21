@@ -2,6 +2,7 @@ package com.OnRoot.onroot.domain.streak.controller;
 
 import com.OnRoot.onroot.domain.streak.dto.StreakResponse;
 import com.OnRoot.onroot.domain.streak.service.StreakService;
+import com.OnRoot.onroot.domain.user.entity.User;
 import com.OnRoot.onroot.global.response.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -12,6 +13,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -40,6 +42,10 @@ public class StreakController {
     })
     @GetMapping
     public StreakResponse getStreak() {
-        return streakService.getStreak();
+        return streakService.getStreak(getCurrentUser());
+    }
+
+    private User getCurrentUser() {
+        return (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
     }
 }

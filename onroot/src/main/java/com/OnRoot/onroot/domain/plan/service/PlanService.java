@@ -8,8 +8,8 @@ import com.OnRoot.onroot.domain.plan.repository.PlanRepository;
 import com.OnRoot.onroot.domain.task.dto.TaskResponse;
 import com.OnRoot.onroot.domain.task.repository.TaskRepository;
 import com.OnRoot.onroot.domain.user.entity.User;
-import com.OnRoot.onroot.domain.user.repository.UserRepository;
 import com.OnRoot.onroot.global.exception.NotFoundException;
+import com.OnRoot.onroot.global.exception.UnauthorizedException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,20 +22,17 @@ public class PlanService {
 
     private final PlanRepository planRepository;
     private final TaskRepository taskRepository;
-    private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
-    public List<PlanResponse> getPlans() {
-        User user = getDummyUser();
+    public List<PlanResponse> getPlans(User user) {
         return planRepository.findByUserOrderByCreatedAtDesc(user).stream()
                 .map(PlanResponse::from)
                 .toList();
     }
 
     @Transactional(readOnly = true)
-    public PlanDetailResponse getPlan(Long planId) {
-        Plan plan = planRepository.findById(planId)
-                .orElseThrow(() -> new NotFoundException("계획을 찾을 수 없습니다."));
+    public PlanDetailResponse getPlan(Long planId, User user) {
+        Plan plan = getPlanAndCheckOwnership(planId, user);
         List<TaskResponse> tasks = taskRepository.findByPlanOrderByOrderIndexAsc(plan).stream()
                 .map(TaskResponse::from)
                 .toList();
@@ -43,22 +40,24 @@ public class PlanService {
     }
 
     @Transactional
-    public PlanResponse updatePlan(Long planId, PlanUpdateRequest request) {
-        Plan plan = planRepository.findById(planId)
-                .orElseThrow(() -> new NotFoundException("계획을 찾을 수 없습니다."));
+    public PlanResponse updatePlan(Long planId, PlanUpdateRequest request, User user) {
+        Plan plan = getPlanAndCheckOwnership(planId, user);
         plan.update(request.title(), request.category(), request.targetDate(), request.status());
         return PlanResponse.from(plan);
     }
 
     @Transactional
-    public void deletePlan(Long planId) {
-        Plan plan = planRepository.findById(planId)
-                .orElseThrow(() -> new NotFoundException("계획을 찾을 수 없습니다."));
+    public void deletePlan(Long planId, User user) {
+        Plan plan = getPlanAndCheckOwnership(planId, user);
         planRepository.delete(plan);
     }
 
-    private User getDummyUser() {
-        return userRepository.findById(1L)
-                .orElseThrow(() -> new IllegalStateException("더미 유저가 없습니다."));
+    private Plan getPlanAndCheckOwnership(Long planId, User user) {
+        Plan plan = planRepository.findById(planId)
+                .orElseThrow(() -> new NotFoundException("계획을 찾을 수 없습니다."));
+        if (!plan.getUser().getId().equals(user.getId())) {
+            throw new UnauthorizedException("해당 리소스에 접근 권한이 없습니다.");
+        }
+        return plan;
     }
 }

@@ -4,6 +4,7 @@ import com.OnRoot.onroot.domain.task.dto.TaskCreateRequest;
 import com.OnRoot.onroot.domain.task.dto.TaskResponse;
 import com.OnRoot.onroot.domain.task.dto.TaskUpdateRequest;
 import com.OnRoot.onroot.domain.task.service.TaskService;
+import com.OnRoot.onroot.domain.user.entity.User;
 import com.OnRoot.onroot.global.response.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -16,6 +17,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -53,7 +55,7 @@ public class TaskController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public TaskResponse createTask(@PathVariable Long planId, @Valid @RequestBody TaskCreateRequest request) {
-        return taskService.createTask(planId, request);
+        return taskService.createTask(planId, request, getCurrentUser());
     }
 
     @Operation(
@@ -73,7 +75,7 @@ public class TaskController {
     })
     @GetMapping
     public List<TaskResponse> getTasks(@PathVariable Long planId) {
-        return taskService.getTasks(planId);
+        return taskService.getTasks(planId, getCurrentUser());
     }
 
     @Operation(
@@ -94,7 +96,7 @@ public class TaskController {
     @PatchMapping("/{taskId}")
     public TaskResponse updateTask(@PathVariable Long planId, @PathVariable Long taskId,
                                    @RequestBody TaskUpdateRequest request) {
-        return taskService.updateTask(planId, taskId, request);
+        return taskService.updateTask(planId, taskId, request, getCurrentUser());
     }
 
     @Operation(
@@ -115,7 +117,7 @@ public class TaskController {
     })
     @PatchMapping("/{taskId}/complete")
     public TaskResponse completeTask(@PathVariable Long planId, @PathVariable Long taskId) {
-        return taskService.completeTask(planId, taskId);
+        return taskService.completeTask(planId, taskId, getCurrentUser());
     }
 
     @Operation(
@@ -136,6 +138,10 @@ public class TaskController {
     @DeleteMapping("/{taskId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteTask(@PathVariable Long planId, @PathVariable Long taskId) {
-        taskService.deleteTask(planId, taskId);
+        taskService.deleteTask(planId, taskId, getCurrentUser());
+    }
+
+    private User getCurrentUser() {
+        return (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
     }
 }

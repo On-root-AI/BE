@@ -3,6 +3,7 @@ package com.OnRoot.onroot.domain.ai.controller;
 import com.OnRoot.onroot.domain.ai.dto.AiGenerateRequest;
 import com.OnRoot.onroot.domain.ai.dto.AiGenerateResponse;
 import com.OnRoot.onroot.domain.ai.service.AiService;
+import com.OnRoot.onroot.domain.user.entity.User;
 import com.OnRoot.onroot.global.response.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -15,6 +16,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "AI", description = "AI 학습 계획 생성 API")
@@ -49,6 +51,10 @@ public class AiController {
     @PostMapping("/generate")
     @ResponseStatus(HttpStatus.CREATED)
     public AiGenerateResponse generate(@Valid @RequestBody AiGenerateRequest request) {
-        return aiService.generate(request);
+        return aiService.generate(request, getCurrentUser());
+    }
+
+    private User getCurrentUser() {
+        return (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
     }
 }
