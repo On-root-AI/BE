@@ -1,0 +1,13 @@
+# IDE
+.idea/
+*.iml
+
+# Claude Code
+.claude/
+
+# Gradle
+onroot/.gradle/
+onroot/build/
+
+# Secrets
+onroot/src/main/resources/application-local.properties
