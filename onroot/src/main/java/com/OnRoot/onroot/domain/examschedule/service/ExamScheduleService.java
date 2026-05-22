@@ -27,6 +27,10 @@ public class ExamScheduleService {
 
     @Transactional
     public void sync() {
+        if (examScheduleRepository.count() > 0) {
+            log.info("exam_schedule 데이터 존재 — Q-Net 동기화 skip");
+            return;
+        }
         Map<String, List<ExamCodeParser.ExamInfo>> examsBySeries = examCodeParser.loadBySeriesName();
 
         List<ExamSchedule> engineers = qNetApiClient.fetchEngineers(examsBySeries);
