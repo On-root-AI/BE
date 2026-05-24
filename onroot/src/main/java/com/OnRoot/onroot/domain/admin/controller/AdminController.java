@@ -1,10 +1,15 @@
-package com.OnRoot.onroot.domain.task.controller;
+package com.OnRoot.onroot.domain.admin.controller;
 
-import com.OnRoot.onroot.domain.task.dto.TaskCreateRequest;
+import com.OnRoot.onroot.domain.dday.dto.DDayResponse;
+import com.OnRoot.onroot.domain.dday.repository.DDayRepository;
+import com.OnRoot.onroot.domain.plan.dto.PlanResponse;
+import com.OnRoot.onroot.domain.plan.repository.PlanRepository;
+import com.OnRoot.onroot.domain.streak.dto.StreakResponse;
+import com.OnRoot.onroot.domain.streak.repository.StreakRepository;
 import com.OnRoot.onroot.domain.task.dto.TaskResponse;
-import com.OnRoot.onroot.domain.task.dto.TaskUpdateRequest;
-import com.OnRoot.onroot.domain.task.service.TaskService;
-import com.OnRoot.onroot.domain.user.entity.User;
+import com.OnRoot.onroot.domain.task.repository.TaskRepository;
+import com.OnRoot.onroot.domain.user.dto.UserResponse;
+import com.OnRoot.onroot.domain.user.repository.UserRepository;
 import com.OnRoot.onroot.global.response.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -13,155 +18,138 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-@Tag(name = "Task", description = "학습 태스크 생성/조회/수정/완료/삭제 API")
+@Tag(name = "Admin", description = "전체 데이터 조회 API (관리자 전용)")
 @RestController
-@RequestMapping("/api/plans/{planId}/tasks")
+@RequestMapping("/api/admin")
 @RequiredArgsConstructor
-public class TaskController {
+public class AdminController {
 
-    private final TaskService taskService;
+    private final UserRepository userRepository;
+    private final DDayRepository ddayRepository;
+    private final PlanRepository planRepository;
+    private final TaskRepository taskRepository;
+    private final StreakRepository streakRepository;
 
-    @Operation(
-            summary = "태스크 생성",
-            description = "특정 플랜에 태스크를 추가합니다.\n\n" +
-                    "- `title`: 태스크 제목 (필수)\n" +
-                    "- `scheduledDate`: 예정일 (필수, yyyy-MM-dd)\n" +
-                    "- `orderIndex`: 순서 인덱스 (0부터 시작)"
-    )
-    @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "태스크 생성 성공"),
-            @ApiResponse(responseCode = "400", description = "필수 값 누락",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class),
-                            examples = @ExampleObject(value = "{\"message\": \"title은 필수 입력값입니다.\"}"))),
-            @ApiResponse(responseCode = "401", description = "인증 토큰 없음 또는 만료",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class),
-                            examples = @ExampleObject(value = "{\"message\": \"인증이 필요합니다.\"}"))),
-            @ApiResponse(responseCode = "404", description = "플랜을 찾을 수 없음",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class),
-                            examples = @ExampleObject(value = "{\"message\": \"해당 플랜을 찾을 수 없습니다.\"}"))),
-            @ApiResponse(responseCode = "500", description = "서버 내부 오류",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class),
-                            examples = @ExampleObject(value = "{\"message\": \"서버 내부 오류가 발생했습니다.\"}")))
-    })
-    @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    public TaskResponse createTask(@PathVariable Long planId, @Valid @RequestBody TaskCreateRequest request) {
-        return taskService.createTask(planId, request, getCurrentUser());
-    }
+    public record WithUser<T>(Long userId, T data) {}
 
-    @Operation(
-            summary = "태스크 목록 조회",
-            description = "특정 플랜에 속한 모든 태스크를 orderIndex 오름차순으로 반환합니다."
-    )
+    @Operation(summary = "전체 유저 조회", description = "모든 유저 목록을 반환합니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(responseCode = "401", description = "인증 토큰 없음 또는 만료",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class),
                             examples = @ExampleObject(value = "{\"message\": \"인증이 필요합니다.\"}"))),
-            @ApiResponse(responseCode = "404", description = "플랜을 찾을 수 없음",
+            @ApiResponse(responseCode = "403", description = "관리자 권한 없음",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class),
-                            examples = @ExampleObject(value = "{\"message\": \"해당 플랜을 찾을 수 없습니다.\"}"))),
+                            examples = @ExampleObject(value = "{\"message\": \"접근 권한이 없습니다.\"}"))),
             @ApiResponse(responseCode = "500", description = "서버 내부 오류",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class),
                             examples = @ExampleObject(value = "{\"message\": \"서버 내부 오류가 발생했습니다.\"}")))
     })
-    @GetMapping
-    public List<TaskResponse> getTasks(@PathVariable Long planId) {
-        return taskService.getTasks(planId, getCurrentUser());
+    @GetMapping("/users")
+    public List<UserResponse> getAllUsers() {
+        return userRepository.findAll().stream().map(UserResponse::from).toList();
     }
 
-    @Operation(
-            summary = "태스크 수정",
-            description = "태스크의 제목, 예정일, 순서를 부분 수정합니다. 보내지 않은 필드는 기존 값을 유지합니다."
-    )
+    @Operation(summary = "전체 D-Day 조회", description = "모든 유저의 D-Day 목록을 userId와 함께 반환합니다.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "수정 성공"),
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(responseCode = "401", description = "인증 토큰 없음 또는 만료",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class),
                             examples = @ExampleObject(value = "{\"message\": \"인증이 필요합니다.\"}"))),
-            @ApiResponse(responseCode = "404", description = "플랜 또는 태스크를 찾을 수 없음",
+            @ApiResponse(responseCode = "403", description = "관리자 권한 없음",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class),
-                            examples = @ExampleObject(value = "{\"message\": \"해당 태스크를 찾을 수 없습니다.\"}"))),
+                            examples = @ExampleObject(value = "{\"message\": \"접근 권한이 없습니다.\"}"))),
             @ApiResponse(responseCode = "500", description = "서버 내부 오류",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class),
                             examples = @ExampleObject(value = "{\"message\": \"서버 내부 오류가 발생했습니다.\"}")))
     })
-    @PatchMapping("/{taskId}")
-    public TaskResponse updateTask(@PathVariable Long planId, @PathVariable Long taskId,
-                                   @RequestBody TaskUpdateRequest request) {
-        return taskService.updateTask(planId, taskId, request, getCurrentUser());
+    @GetMapping("/ddays")
+    public List<WithUser<DDayResponse>> getAllDDays() {
+        return ddayRepository.findAll().stream()
+                .map(d -> new WithUser<>(d.getUser().getId(), DDayResponse.from(d)))
+                .toList();
     }
 
-    @Operation(
-            summary = "태스크 완료 처리",
-            description = "태스크를 완료 상태로 변경합니다. 완료 시각(`completedAt`)이 현재 시간으로 기록됩니다.\n\n" +
-                    "이미 완료된 태스크에 다시 호출하면 완료 시각이 갱신됩니다."
-    )
+    @Operation(summary = "전체 Plan 조회", description = "모든 유저의 플랜 목록을 userId와 함께 반환합니다.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "완료 처리 성공"),
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(responseCode = "401", description = "인증 토큰 없음 또는 만료",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class),
                             examples = @ExampleObject(value = "{\"message\": \"인증이 필요합니다.\"}"))),
-            @ApiResponse(responseCode = "404", description = "플랜 또는 태스크를 찾을 수 없음",
+            @ApiResponse(responseCode = "403", description = "관리자 권한 없음",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class),
-                            examples = @ExampleObject(value = "{\"message\": \"해당 태스크를 찾을 수 없습니다.\"}"))),
+                            examples = @ExampleObject(value = "{\"message\": \"접근 권한이 없습니다.\"}"))),
             @ApiResponse(responseCode = "500", description = "서버 내부 오류",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class),
                             examples = @ExampleObject(value = "{\"message\": \"서버 내부 오류가 발생했습니다.\"}")))
     })
-    @PatchMapping("/{taskId}/complete")
-    public TaskResponse completeTask(@PathVariable Long planId, @PathVariable Long taskId) {
-        return taskService.completeTask(planId, taskId, getCurrentUser());
+    @GetMapping("/plans")
+    public List<WithUser<PlanResponse>> getAllPlans() {
+        return planRepository.findAll().stream()
+                .map(p -> new WithUser<>(p.getUser().getId(), PlanResponse.from(p)))
+                .toList();
     }
 
-    @Operation(
-            summary = "태스크 삭제",
-            description = "태스크를 삭제합니다."
-    )
+    @Operation(summary = "전체 Task 조회", description = "모든 유저의 태스크 목록을 userId와 함께 반환합니다.")
     @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "삭제 성공"),
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(responseCode = "401", description = "인증 토큰 없음 또는 만료",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class),
                             examples = @ExampleObject(value = "{\"message\": \"인증이 필요합니다.\"}"))),
-            @ApiResponse(responseCode = "404", description = "플랜 또는 태스크를 찾을 수 없음",
+            @ApiResponse(responseCode = "403", description = "관리자 권한 없음",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class),
-                            examples = @ExampleObject(value = "{\"message\": \"해당 태스크를 찾을 수 없습니다.\"}"))),
+                            examples = @ExampleObject(value = "{\"message\": \"접근 권한이 없습니다.\"}"))),
             @ApiResponse(responseCode = "500", description = "서버 내부 오류",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class),
                             examples = @ExampleObject(value = "{\"message\": \"서버 내부 오류가 발생했습니다.\"}")))
     })
-    @DeleteMapping("/{taskId}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteTask(@PathVariable Long planId, @PathVariable Long taskId) {
-        taskService.deleteTask(planId, taskId, getCurrentUser());
+    @GetMapping("/tasks")
+    public List<WithUser<TaskResponse>> getAllTasks() {
+        return taskRepository.findAll().stream()
+                .map(t -> new WithUser<>(t.getPlan().getUser().getId(), TaskResponse.from(t)))
+                .toList();
     }
 
-    private User getCurrentUser() {
-        return (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+    @Operation(summary = "전체 Streak 조회", description = "모든 유저의 스트릭 정보를 userId와 함께 반환합니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "401", description = "인증 토큰 없음 또는 만료",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = "{\"message\": \"인증이 필요합니다.\"}"))),
+            @ApiResponse(responseCode = "403", description = "관리자 권한 없음",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = "{\"message\": \"접근 권한이 없습니다.\"}"))),
+            @ApiResponse(responseCode = "500", description = "서버 내부 오류",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = "{\"message\": \"서버 내부 오류가 발생했습니다.\"}")))
+    })
+    @GetMapping("/streaks")
+    public List<WithUser<StreakResponse>> getAllStreaks() {
+        return streakRepository.findAll().stream()
+                .map(s -> new WithUser<>(s.getUser().getId(), StreakResponse.from(s)))
+                .toList();
     }
 }
