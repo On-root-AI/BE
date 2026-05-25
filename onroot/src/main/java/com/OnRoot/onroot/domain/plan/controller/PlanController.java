@@ -1,10 +1,28 @@
 package com.OnRoot.onroot.domain.plan.controller;
 
+import java.util.List;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.OnRoot.onroot.domain.plan.dto.PlanCreateRequest;
 import com.OnRoot.onroot.domain.plan.dto.PlanDetailResponse;
 import com.OnRoot.onroot.domain.plan.dto.PlanResponse;
 import com.OnRoot.onroot.domain.plan.dto.PlanUpdateRequest;
 import com.OnRoot.onroot.domain.plan.service.PlanService;
+import com.OnRoot.onroot.domain.user.entity.User;
 import com.OnRoot.onroot.global.response.ErrorResponse;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -12,14 +30,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import com.OnRoot.onroot.domain.user.entity.User;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @Tag(name = "Plan", description = "학습 계획 조회/수정/삭제 API")
 @RestController
@@ -46,8 +57,19 @@ public class PlanController {
     })
     @GetMapping
     public List<PlanResponse> getPlans() {
-        return planService.getPlans(getCurrentUser());
+            return planService.getPlans(getCurrentUser());
     }
+    
+
+        @Operation(
+                        summary = "플랜 생성",
+                        description = "새 학습 계획을 생성합니다."
+        )
+        @PostMapping
+        @ResponseStatus(HttpStatus.CREATED)
+        public PlanResponse createPlan(@RequestBody PlanCreateRequest request) {
+                return planService.createPlan(request, getCurrentUser());
+        }
 
     @Operation(
             summary = "플랜 상세 조회",
@@ -122,6 +144,7 @@ public class PlanController {
     public void deletePlan(@PathVariable Long planId) {
         planService.deletePlan(planId, getCurrentUser());
     }
+
 
     private User getCurrentUser() {
         return (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
