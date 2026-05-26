@@ -47,7 +47,7 @@ public class PlanService {
     @Transactional
     public PlanResponse updatePlan(Long planId, PlanUpdateRequest request, User user) {
         Plan plan = getPlanAndCheckOwnership(planId, user);
-        plan.update(request.title(), request.category(), request.targetDate(), request.status());
+        plan.update(request.title(), request.category(), request.targetDate(), request.memo(), request.status());
         return PlanResponse.from(plan);
     }
 
@@ -65,6 +65,7 @@ public class PlanService {
             .title(request.title())
             .category(request.category())
             .targetDate(request.targetDate())
+            .memo(request.memo())
             .status(PlanStatus.IN_PROGRESS)
             .createdAt(java.time.LocalDateTime.now());
 

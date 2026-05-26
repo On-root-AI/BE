@@ -12,6 +12,7 @@ public record PlanDetailResponse(
         String title,
         String category,
         LocalDate targetDate,
+    String memo,
         PlanStatus status,
         LocalDateTime createdAt,
         List<TaskResponse> tasks
@@ -22,6 +23,7 @@ public record PlanDetailResponse(
                 plan.getTitle(),
                 plan.getCategory(),
                 plan.getTargetDate(),
+                plan.getMemo(),
                 plan.getStatus(),
                 plan.getCreatedAt(),
                 tasks

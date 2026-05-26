@@ -63,7 +63,7 @@ public class PlanController {
 
         @Operation(
                         summary = "플랜 생성",
-                        description = "새 학습 계획을 생성합니다."
+                    description = "새 학습 계획을 생성합니다. memo를 함께 보내면 저장됩니다."
         )
         @PostMapping
         @ResponseStatus(HttpStatus.CREATED)
@@ -84,7 +84,7 @@ public class PlanController {
             @ApiResponse(responseCode = "404", description = "플랜을 찾을 수 없음",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class),
-                            examples = @ExampleObject(value = "{\"message\": \"해당 플랜을 찾을 수 없습니다.\"}"))),
+                            examples = @ExampleObject(value = "{\"message\": \"계획을 찾을 수 없습니다.\"}"))),
             @ApiResponse(responseCode = "500", description = "서버 내부 오류",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class),
@@ -97,7 +97,7 @@ public class PlanController {
 
     @Operation(
             summary = "플랜 수정",
-            description = "플랜의 제목, 카테고리, 목표일, 상태를 부분 수정합니다. 보내지 않은 필드는 기존 값을 유지합니다.\n\n" +
+            description = "플랜의 제목, 카테고리, 목표일, 메모, 상태를 부분 수정합니다. 보내지 않은 필드는 기존 값을 유지합니다.\n\n" +
                     "**status 가능 값**: `IN_PROGRESS`, `COMPLETED`, `ABANDONED`"
     )
     @ApiResponses({

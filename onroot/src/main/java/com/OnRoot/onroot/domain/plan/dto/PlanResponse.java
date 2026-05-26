@@ -10,6 +10,7 @@ public record PlanResponse(
         String title,
         String category,
         LocalDate targetDate,
+    String memo,
         PlanStatus status,
         LocalDateTime createdAt
 ) {
@@ -19,6 +20,7 @@ public record PlanResponse(
                 plan.getTitle(),
                 plan.getCategory(),
                 plan.getTargetDate(),
+                plan.getMemo(),
                 plan.getStatus(),
                 plan.getCreatedAt()
         );
