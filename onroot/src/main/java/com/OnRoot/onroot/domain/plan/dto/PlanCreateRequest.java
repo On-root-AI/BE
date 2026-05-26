@@ -6,5 +6,6 @@ public record PlanCreateRequest(
         String title,
         String category,
         LocalDate targetDate,
+        String memo,
         Long examScheduleId
 ) {}
