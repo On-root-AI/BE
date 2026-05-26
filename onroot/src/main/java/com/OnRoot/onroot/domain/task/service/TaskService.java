@@ -1,5 +1,11 @@
 package com.OnRoot.onroot.domain.task.service;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.OnRoot.onroot.domain.plan.entity.Plan;
 import com.OnRoot.onroot.domain.plan.repository.PlanRepository;
 import com.OnRoot.onroot.domain.task.dto.TaskCreateRequest;
@@ -10,12 +16,8 @@ import com.OnRoot.onroot.domain.task.repository.TaskRepository;
 import com.OnRoot.onroot.domain.user.entity.User;
 import com.OnRoot.onroot.global.exception.NotFoundException;
 import com.OnRoot.onroot.global.exception.UnauthorizedException;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.List;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -58,7 +60,11 @@ public class TaskService {
         Plan plan = getPlanAndCheckOwnership(planId, user);
         Task task = taskRepository.findByIdAndPlan(taskId, plan)
                 .orElseThrow(() -> new NotFoundException("할일을 찾을 수 없습니다."));
-        task.complete(LocalDateTime.now());
+        if (task.getCompletedAt() == null) {
+            task.complete(LocalDateTime.now());
+        } else {
+            task.complete(null);
+        }
         return TaskResponse.from(task);
     }
 
