@@ -1,5 +1,11 @@
 package com.OnRoot.onroot.domain.dday.service;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.OnRoot.onroot.domain.dday.dto.DDayRequest;
 import com.OnRoot.onroot.domain.dday.dto.DDayResponse;
 import com.OnRoot.onroot.domain.dday.entity.DDay;
@@ -7,12 +13,8 @@ import com.OnRoot.onroot.domain.dday.repository.DDayRepository;
 import com.OnRoot.onroot.domain.user.entity.User;
 import com.OnRoot.onroot.global.exception.NotFoundException;
 import com.OnRoot.onroot.global.exception.UnauthorizedException;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.List;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -49,6 +51,12 @@ public class DDayService {
     public void deleteDDay(Long ddayId, User user) {
         DDay dday = getDDayAndCheckOwnership(ddayId, user);
         ddayRepository.delete(dday);
+    }
+
+    @Transactional(readOnly = true)
+    public DDayResponse getDDay(Long ddayId, User user) {
+        DDay dday = getDDayAndCheckOwnership(ddayId, user);
+        return DDayResponse.from(dday);
     }
 
     private DDay getDDayAndCheckOwnership(Long ddayId, User user) {
