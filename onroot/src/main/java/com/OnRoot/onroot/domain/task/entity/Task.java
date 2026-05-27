@@ -1,11 +1,24 @@
 package com.OnRoot.onroot.domain.task.entity;
 
-import com.OnRoot.onroot.domain.plan.entity.Plan;
-import jakarta.persistence.*;
-import lombok.*;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+
+import com.OnRoot.onroot.domain.plan.entity.Plan;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "TASK")
@@ -35,13 +48,27 @@ public class Task {
     @Column(name = "completed_at")
     private LocalDateTime completedAt;
 
+    @Column(name = "memo", length = 2000)
+    private String memo;
+
     public void update(String title, LocalDate scheduledDate, Integer orderIndex) {
         if (title != null) this.title = title;
         if (scheduledDate != null) this.scheduledDate = scheduledDate;
         if (orderIndex != null) this.orderIndex = orderIndex;
     }
 
+    public void update(String title, LocalDate scheduledDate, Integer orderIndex, String memo) {
+        if (title != null) this.title = title;
+        if (scheduledDate != null) this.scheduledDate = scheduledDate;
+        if (orderIndex != null) this.orderIndex = orderIndex;
+        if (memo != null) this.memo = memo;
+    }
+
     public void complete(LocalDateTime completedAt) {
         this.completedAt = completedAt;
+    }
+
+    public String getMemo() {
+        return memo;
     }
 }

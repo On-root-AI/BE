@@ -9,8 +9,9 @@ public record TaskResponse(
         Long planId,
         String title,
         LocalDate scheduledDate,
-        LocalDateTime completedAt,
-        int orderIndex
+    LocalDateTime completedAt,
+    int orderIndex,
+    String memo
 ) {
     public static TaskResponse from(Task task) {
         return new TaskResponse(
@@ -18,8 +19,9 @@ public record TaskResponse(
                 task.getPlan().getId(),
                 task.getTitle(),
                 task.getScheduledDate(),
-                task.getCompletedAt(),
-                task.getOrderIndex()
+        task.getCompletedAt(),
+        task.getOrderIndex(),
+        task.getMemo()
         );
     }
 }

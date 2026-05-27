@@ -97,6 +97,26 @@ public class TaskController {
     }
 
     @Operation(
+            summary = "태스크 상세 조회",
+            description = "특정 플랜의 단일 태스크 상세 정보를 반환합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "401", description = "인증 토큰 없음 또는 만료",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = "{\"message\": \"인증이 필요합니다.\"}"))),
+            @ApiResponse(responseCode = "404", description = "플랜 또는 태스크를 찾을 수 없음",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(value = "{\"message\": \"해당 태스크를 찾을 수 없습니다.\"}")))
+    })
+    @GetMapping("/{taskId}")
+    public TaskResponse getTask(@PathVariable Long planId, @PathVariable Long taskId) {
+        return taskService.getTask(planId, taskId, getCurrentUser());
+    }
+
+    @Operation(
             summary = "태스크 수정",
             description = "태스크의 제목, 예정일, 순서를 부분 수정합니다. 보내지 않은 필드는 기존 값을 유지합니다."
     )
