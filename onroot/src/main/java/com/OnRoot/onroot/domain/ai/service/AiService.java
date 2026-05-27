@@ -323,14 +323,14 @@ public class AiService {
         int weekday = 2;
         int weekend = 2;
 
-        Matcher m = Pattern.compile("평일\\s*(\\d+)\\s*시간").matcher(userInput);
+        Matcher m = Pattern.compile("평일[^\\d]*(\\d+)\\s*시간").matcher(userInput);
         if (m.find()) weekday = Integer.parseInt(m.group(1));
 
-        m = Pattern.compile("주말\\s*(\\d+)\\s*시간").matcher(userInput);
+        m = Pattern.compile("주말[^\\d]*(\\d+)\\s*시간").matcher(userInput);
         if (m.find()) weekend = Integer.parseInt(m.group(1));
 
         if (!userInput.contains("평일") && !userInput.contains("주말")) {
-            m = Pattern.compile("하루\\s*(\\d+)\\s*시간").matcher(userInput);
+            m = Pattern.compile("하루[^\\d]*(\\d+)\\s*시간").matcher(userInput);
             if (m.find()) {
                 weekday = Integer.parseInt(m.group(1));
                 weekend = weekday;
