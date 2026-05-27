@@ -16,6 +16,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.OnRoot.onroot.domain.plan.entity.Plan;
 import com.OnRoot.onroot.domain.plan.entity.PlanStatus;
 import com.OnRoot.onroot.domain.plan.repository.PlanRepository;
+import com.OnRoot.onroot.domain.streak.service.StreakService;
 import com.OnRoot.onroot.domain.task.dto.TaskResponse;
 import com.OnRoot.onroot.domain.task.entity.Task;
 import com.OnRoot.onroot.domain.task.repository.TaskRepository;
@@ -29,6 +30,9 @@ class TaskServiceTest {
 
     @Mock
     private PlanRepository planRepository;
+
+        @Mock
+        private StreakService streakService;
 
     @InjectMocks
     private TaskService taskService;
