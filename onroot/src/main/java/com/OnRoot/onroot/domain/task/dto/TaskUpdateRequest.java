@@ -5,5 +5,6 @@ import java.time.LocalDate;
 public record TaskUpdateRequest(
         String title,
         LocalDate scheduledDate,
-        Integer orderIndex
+        Integer orderIndex,
+        String memo
 ) {}

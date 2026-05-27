@@ -34,6 +34,7 @@ public class TaskService {
                 .title(request.title())
                 .scheduledDate(request.scheduledDate())
                 .orderIndex(request.orderIndex())
+                .memo(request.memo())
                 .build();
         return TaskResponse.from(taskRepository.save(task));
     }
@@ -51,7 +52,15 @@ public class TaskService {
         Plan plan = getPlanAndCheckOwnership(planId, user);
         Task task = taskRepository.findByIdAndPlan(taskId, plan)
                 .orElseThrow(() -> new NotFoundException("할일을 찾을 수 없습니다."));
-        task.update(request.title(), request.scheduledDate(), request.orderIndex());
+        task.update(request.title(), request.scheduledDate(), request.orderIndex(), request.memo());
+        return TaskResponse.from(task);
+    }
+
+    @Transactional(readOnly = true)
+    public TaskResponse getTask(Long planId, Long taskId, User user) {
+        Plan plan = getPlanAndCheckOwnership(planId, user);
+        Task task = taskRepository.findByIdAndPlan(taskId, plan)
+                .orElseThrow(() -> new NotFoundException("할일을 찾을 수 없습니다."));
         return TaskResponse.from(task);
     }
 
