@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.OnRoot.onroot.domain.plan.entity.Plan;
 import com.OnRoot.onroot.domain.plan.repository.PlanRepository;
+import com.OnRoot.onroot.domain.streak.service.StreakService;
 import com.OnRoot.onroot.domain.task.dto.TaskCreateRequest;
 import com.OnRoot.onroot.domain.task.dto.TaskResponse;
 import com.OnRoot.onroot.domain.task.dto.TaskUpdateRequest;
@@ -25,6 +26,7 @@ public class TaskService {
 
     private final TaskRepository taskRepository;
     private final PlanRepository planRepository;
+    private final StreakService streakService;
 
     @Transactional
     public TaskResponse createTask(Long planId, TaskCreateRequest request, User user) {
@@ -70,10 +72,12 @@ public class TaskService {
         Task task = taskRepository.findByIdAndPlan(taskId, plan)
                 .orElseThrow(() -> new NotFoundException("할일을 찾을 수 없습니다."));
         if (task.getCompletedAt() == null) {
-            task.complete(LocalDateTime.now());
+            LocalDateTime completedAt = LocalDateTime.now();
+            task.complete(completedAt);
         } else {
             task.complete(null);
         }
+        streakService.syncStreak(user);
         return TaskResponse.from(task);
     }
 
