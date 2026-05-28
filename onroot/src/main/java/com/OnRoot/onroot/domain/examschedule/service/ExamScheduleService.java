@@ -8,6 +8,7 @@ import com.OnRoot.onroot.global.client.QNetApiClient;
 import com.OnRoot.onroot.global.parser.ExamCodeParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +26,7 @@ public class ExamScheduleService {
     private final QNetApiClient qNetApiClient;
     private final ExamCodeParser examCodeParser;
 
+    @Async("syncExecutor")
     @Transactional
     public void sync() {
         if (examScheduleRepository.count() > 0) {
@@ -35,10 +37,14 @@ public class ExamScheduleService {
 
         List<ExamSchedule> engineers = qNetApiClient.fetchEngineers(examsBySeries);
         List<ExamSchedule> professionals = qNetApiClient.fetchProfessionals(examsBySeries);
+        List<ExamSchedule> functional = qNetApiClient.fetchFunctional(examsBySeries);
+        List<ExamSchedule> industrial = qNetApiClient.fetchIndustrialEngineers(examsBySeries);
 
         List<ExamSchedule> all = new ArrayList<>();
         all.addAll(engineers);
         all.addAll(professionals);
+        all.addAll(functional);
+        all.addAll(industrial);
 
         if (all.isEmpty()) {
             log.warn("시험 일정 fetch 결과 없음, 기존 데이터 유지");
@@ -48,7 +54,8 @@ public class ExamScheduleService {
         planRepository.clearExamScheduleReferences();
         examScheduleRepository.deleteAll();
         examScheduleRepository.saveAll(all);
-        log.info("시험 일정 동기화 완료: 기사 {}건, 기술사 {}건 저장", engineers.size(), professionals.size());
+        log.info("시험 일정 동기화 완료: 기사 {}건, 기술사 {}건, 기능사 {}건, 산업기사 {}건 저장",
+                engineers.size(), professionals.size(), functional.size(), industrial.size());
     }
 
     @Transactional(readOnly = true)

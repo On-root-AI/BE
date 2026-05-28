@@ -13,6 +13,7 @@ import com.OnRoot.onroot.domain.task.entity.Task;
 import com.OnRoot.onroot.domain.task.repository.TaskRepository;
 import com.OnRoot.onroot.domain.user.entity.User;
 import com.OnRoot.onroot.global.client.GeminiApiClient;
+import com.OnRoot.onroot.global.store.ExamSubjectStore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -60,6 +62,7 @@ public class AiService {
     private final AiGenerationLogRepository aiGenerationLogRepository;
     private final GeminiApiClient geminiApiClient;
     private final ObjectMapper objectMapper;
+    private final ExamSubjectStore examSubjectStore;
 
     @Value("${gemini.api.model}")
     private String llmModel;
@@ -230,23 +233,16 @@ public class AiService {
         return topic + " (" + weekdayHours + "시간)";
     }
 
-    private boolean isSpecialDate(LocalDate date, ExamSchedule writtenExam, ExamSchedule practicalExam) {
-        if (writtenExam != null && date.equals(writtenExam.getExamDate())) return true;
-        if (practicalExam != null && date.equals(practicalExam.getExamDate())) return true;
-        if (writtenExam != null && writtenExam.getApplicationStart() != null
-                && !date.isBefore(writtenExam.getApplicationStart())
-                && !date.isAfter(writtenExam.getApplicationEnd())) return true;
-        if (practicalExam != null && practicalExam.getApplicationStart() != null
-                && !date.isBefore(practicalExam.getApplicationStart())
-                && !date.isAfter(practicalExam.getApplicationEnd())) return true;
-        return false;
-    }
-
     private boolean isWeekend(LocalDate date) {
         return date.getDayOfWeek() == DayOfWeek.SATURDAY || date.getDayOfWeek() == DayOfWeek.SUNDAY;
     }
 
+    private static final long EXAM_MATCH_TOLERANCE_DAYS = 14;
+
     private ExamMatch resolveExamSchedule(String userInput, LocalDate targetDate) {
+        boolean wantsWrittenOnly  = userInput.contains("필기") && !userInput.contains("실기");
+        boolean wantsPracticalOnly = userInput.contains("실기") && !userInput.contains("필기");
+
         String[] tokens = userInput.split("[\\s,./]+");
         for (String token : tokens) {
             if (token.length() < 2) continue;
@@ -254,23 +250,65 @@ public class AiService {
             String keyword = EXAM_ALIAS.getOrDefault(token, token);
             List<ExamSchedule> matches = examScheduleRepository
                     .findByExamNameContainingAndExamDateGreaterThanEqualOrderByExamDateAsc(keyword, LocalDate.now());
-            if (!matches.isEmpty()) {
+            if (matches.isEmpty()) continue;
+
+            if (wantsWrittenOnly) {
+                // "필기 합격하고싶어" — 필기 일정만
                 ExamSchedule writtenExam = matches.stream()
                         .filter(e -> e.getExamName().contains("필기"))
-                        .filter(e -> !e.getExamDate().isAfter(targetDate))
-                        .max(Comparator.comparing(ExamSchedule::getExamDate))
+                        .filter(e -> Math.abs(ChronoUnit.DAYS.between(e.getExamDate(), targetDate)) <= EXAM_MATCH_TOLERANCE_DAYS)
+                        .min(Comparator.comparingLong(e -> Math.abs(ChronoUnit.DAYS.between(e.getExamDate(), targetDate))))
                         .orElse(null);
+                return new ExamMatch(writtenExam, null, keyword);
+            }
+
+            if (wantsPracticalOnly) {
+                // "실기 합격하고싶어" — 이미 필기 합격, 실기 일정만
                 ExamSchedule practicalExam = matches.stream()
                         .filter(e -> e.getExamName().contains("실기"))
-                        .filter(e -> !e.getExamDate().isAfter(targetDate))
+                        .filter(e -> Math.abs(ChronoUnit.DAYS.between(e.getExamDate(), targetDate)) <= EXAM_MATCH_TOLERANCE_DAYS)
+                        .min(Comparator.comparingLong(e -> Math.abs(ChronoUnit.DAYS.between(e.getExamDate(), targetDate))))
+                        .orElse(null);
+                return new ExamMatch(null, practicalExam, keyword);
+            }
+
+            // 일반 케이스: targetDate ±14일 이내의 실기 → 그 앞 필기
+            ExamSchedule practicalExam = matches.stream()
+                    .filter(e -> e.getExamName().contains("실기"))
+                    .filter(e -> Math.abs(ChronoUnit.DAYS.between(e.getExamDate(), targetDate)) <= EXAM_MATCH_TOLERANCE_DAYS)
+                    .min(Comparator.comparingLong(e -> Math.abs(ChronoUnit.DAYS.between(e.getExamDate(), targetDate))))
+                    .orElse(null);
+
+            ExamSchedule writtenExam;
+            if (practicalExam != null) {
+                final LocalDate practicalDate = practicalExam.getExamDate();
+                writtenExam = matches.stream()
+                        .filter(e -> e.getExamName().contains("필기"))
+                        .filter(e -> e.getExamDate().isBefore(practicalDate))
                         .max(Comparator.comparing(ExamSchedule::getExamDate))
                         .orElse(null);
-                return new ExamMatch(writtenExam, practicalExam, keyword);
+                // 실기는 잡혔으나 앞선 필기가 없으면 → 필기를 봐야 실기가 가능하므로 일반학습계획
+                if (writtenExam == null) {
+                    return new ExamMatch(null, null, keyword);
+                }
+            } else {
+                writtenExam = matches.stream()
+                        .filter(e -> e.getExamName().contains("필기"))
+                        .filter(e -> Math.abs(ChronoUnit.DAYS.between(e.getExamDate(), targetDate)) <= EXAM_MATCH_TOLERANCE_DAYS)
+                        .min(Comparator.comparingLong(e -> Math.abs(ChronoUnit.DAYS.between(e.getExamDate(), targetDate))))
+                        .orElse(null);
+            }
+
+            return new ExamMatch(writtenExam, practicalExam, keyword);
+        }
+        String fallbackToken = "기타";
+        for (String token : tokens) {
+            if (token.length() >= 2 && !GENERIC_TOKENS.contains(token)) {
+                fallbackToken = EXAM_ALIAS.getOrDefault(token, token);
+                break;
             }
         }
-        String fallbackCategory = tokens.length > 0
-                ? EXAM_ALIAS.getOrDefault(tokens[0], tokens[0])
-                : "기타";
+        String fallbackCategory = fallbackToken;
         return new ExamMatch(null, null, fallbackCategory);
     }
 
@@ -278,14 +316,14 @@ public class AiService {
         int weekday = 2;
         int weekend = 2;
 
-        Matcher m = Pattern.compile("평일\\s*(\\d+)\\s*시간").matcher(userInput);
+        Matcher m = Pattern.compile("평일[^\\d]*(\\d+)\\s*시간").matcher(userInput);
         if (m.find()) weekday = Integer.parseInt(m.group(1));
 
-        m = Pattern.compile("주말\\s*(\\d+)\\s*시간").matcher(userInput);
+        m = Pattern.compile("주말[^\\d]*(\\d+)\\s*시간").matcher(userInput);
         if (m.find()) weekend = Integer.parseInt(m.group(1));
 
         if (!userInput.contains("평일") && !userInput.contains("주말")) {
-            m = Pattern.compile("하루\\s*(\\d+)\\s*시간").matcher(userInput);
+            m = Pattern.compile("하루[^\\d]*(\\d+)\\s*시간").matcher(userInput);
             if (m.find()) {
                 weekday = Integer.parseInt(m.group(1));
                 weekend = weekday;
@@ -365,17 +403,29 @@ public class AiService {
         sb.append("- weekdayTopics 5개는 각각 월/화/수/목/금에 해당하는 서로 다른 소주제여야 함\n");
         sb.append("- 시험일, 원서접수 기간은 서버에서 자동 처리하므로 세그먼트에 자유롭게 포함해도 됨\n");
 
+        ExamSubjectStore.ExamSubjects subjects = examSubjectStore.findByName(category).orElse(null);
+
         if (hasBothExams) {
             sb.append("- 필기 준비 구간(오늘~").append(writtenExam.getExamDate())
-              .append("): ").append(category).append(" 필기 5개 과목을 세그먼트별로 배분\n");
-            sb.append("  예) 소프트웨어 설계 → 소프트웨어 개발 → 데이터베이스 → 프로그래밍 언어 → 정보시스템 구축관리 → 전과목 복습\n");
+              .append("): ").append(category).append(" 필기 과목을 세그먼트별로 배분\n");
+            if (subjects != null && !subjects.written().isEmpty()) {
+                sb.append("  [필기 과목] ").append(String.join(" → ", subjects.written())).append("\n");
+            }
             sb.append("- 실기 준비 구간(").append(writtenExam.getExamDate().plusDays(1)).append("~")
               .append(practicalExam.getExamDate()).append("): 실기 과목별 세그먼트 구성\n");
-            sb.append("  예) 프로그래밍 → SQL → 업무프로세스 → 알고리즘 → 통합 복습\n");
+            if (subjects != null && !subjects.practical().isEmpty()) {
+                sb.append("  [실기 과목] ").append(String.join(" → ", subjects.practical())).append("\n");
+            }
         } else if (writtenExam != null) {
             sb.append("- 필기 준비 구간: ").append(category).append(" 필기 과목별 세그먼트 구성\n");
+            if (subjects != null && !subjects.written().isEmpty()) {
+                sb.append("  [필기 과목] ").append(String.join(" → ", subjects.written())).append("\n");
+            }
         } else if (practicalExam != null) {
             sb.append("- 실기 준비 구간: 실기 과목별 세그먼트 구성\n");
+            if (subjects != null && !subjects.practical().isEmpty()) {
+                sb.append("  [실기 과목] ").append(String.join(" → ", subjects.practical())).append("\n");
+            }
         }
 
         if (!hasAnyExam) {
