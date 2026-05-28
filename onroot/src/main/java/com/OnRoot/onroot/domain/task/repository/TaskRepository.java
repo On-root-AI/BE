@@ -12,4 +12,6 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     List<Task> findByPlanOrderByOrderIndexAsc(Plan plan);
 
     Optional<Task> findByIdAndPlan(Long id, Plan plan);
+
+    void deleteByPlan(Plan plan);
 }

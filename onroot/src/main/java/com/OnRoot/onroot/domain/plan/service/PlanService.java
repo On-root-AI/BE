@@ -12,6 +12,7 @@ import com.OnRoot.onroot.domain.plan.dto.PlanUpdateRequest;
 import com.OnRoot.onroot.domain.plan.entity.Plan;
 import com.OnRoot.onroot.domain.plan.entity.PlanStatus;
 import com.OnRoot.onroot.domain.plan.repository.PlanRepository;
+import com.OnRoot.onroot.domain.ai.repository.AiGenerationLogRepository;
 import com.OnRoot.onroot.domain.task.dto.TaskResponse;
 import com.OnRoot.onroot.domain.task.repository.TaskRepository;
 import com.OnRoot.onroot.domain.user.entity.User;
@@ -26,6 +27,7 @@ public class PlanService {
 
     private final PlanRepository planRepository;
     private final TaskRepository taskRepository;
+    private final AiGenerationLogRepository aiGenerationLogRepository;
     private final com.OnRoot.onroot.domain.examschedule.repository.ExamScheduleRepository examScheduleRepository;
 
     @Transactional(readOnly = true)
@@ -54,6 +56,8 @@ public class PlanService {
     @Transactional
     public void deletePlan(Long planId, User user) {
         Plan plan = getPlanAndCheckOwnership(planId, user);
+        taskRepository.deleteByPlan(plan);
+        aiGenerationLogRepository.deleteByPlan(plan);
         planRepository.delete(plan);
     }
 
