@@ -233,18 +233,6 @@ public class AiService {
         return topic + " (" + weekdayHours + "시간)";
     }
 
-    private boolean isSpecialDate(LocalDate date, ExamSchedule writtenExam, ExamSchedule practicalExam) {
-        if (writtenExam != null && date.equals(writtenExam.getExamDate())) return true;
-        if (practicalExam != null && date.equals(practicalExam.getExamDate())) return true;
-        if (writtenExam != null && writtenExam.getApplicationStart() != null
-                && !date.isBefore(writtenExam.getApplicationStart())
-                && !date.isAfter(writtenExam.getApplicationEnd())) return true;
-        if (practicalExam != null && practicalExam.getApplicationStart() != null
-                && !date.isBefore(practicalExam.getApplicationStart())
-                && !date.isAfter(practicalExam.getApplicationEnd())) return true;
-        return false;
-    }
-
     private boolean isWeekend(LocalDate date) {
         return date.getDayOfWeek() == DayOfWeek.SATURDAY || date.getDayOfWeek() == DayOfWeek.SUNDAY;
     }
@@ -284,7 +272,7 @@ public class AiService {
                 return new ExamMatch(null, practicalExam, keyword);
             }
 
-            // 일반 케이스: targetDate ±60일 이내의 실기 → 그 앞 필기
+            // 일반 케이스: targetDate ±14일 이내의 실기 → 그 앞 필기
             ExamSchedule practicalExam = matches.stream()
                     .filter(e -> e.getExamName().contains("실기"))
                     .filter(e -> Math.abs(ChronoUnit.DAYS.between(e.getExamDate(), targetDate)) <= EXAM_MATCH_TOLERANCE_DAYS)
@@ -313,9 +301,14 @@ public class AiService {
 
             return new ExamMatch(writtenExam, practicalExam, keyword);
         }
-        String fallbackCategory = tokens.length > 0
-                ? EXAM_ALIAS.getOrDefault(tokens[0], tokens[0])
-                : "기타";
+        String fallbackToken = "기타";
+        for (String token : tokens) {
+            if (token.length() >= 2 && !GENERIC_TOKENS.contains(token)) {
+                fallbackToken = EXAM_ALIAS.getOrDefault(token, token);
+                break;
+            }
+        }
+        String fallbackCategory = fallbackToken;
         return new ExamMatch(null, null, fallbackCategory);
     }
 
