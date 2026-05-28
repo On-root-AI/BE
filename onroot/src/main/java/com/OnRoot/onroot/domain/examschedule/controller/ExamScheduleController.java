@@ -73,4 +73,11 @@ public class ExamScheduleController {
     public void sync() {
         examScheduleService.sync();
     }
+
+    @Operation(summary = "기사 시험 일정 재동기화", description = "기사 종목만 Q-Net에서 다시 조회하여 기존 기사 데이터를 교체합니다.")
+    @PostMapping("/sync/engineers")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void syncEngineers() {
+        examScheduleService.syncEngineers();
+    }
 }

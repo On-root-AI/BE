@@ -15,6 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -56,6 +58,23 @@ public class ExamScheduleService {
         examScheduleRepository.saveAll(all);
         log.info("시험 일정 동기화 완료: 기사 {}건, 기술사 {}건, 기능사 {}건, 산업기사 {}건 저장",
                 engineers.size(), professionals.size(), functional.size(), industrial.size());
+    }
+
+    @Async("syncExecutor")
+    @Transactional
+    public void syncEngineers() {
+        Map<String, List<ExamCodeParser.ExamInfo>> examsBySeries = examCodeParser.loadBySeriesName();
+        List<ExamSchedule> engineers = qNetApiClient.fetchEngineers(examsBySeries);
+        if (engineers.isEmpty()) {
+            log.warn("기사 시험 일정 fetch 결과 없음");
+            return;
+        }
+        Set<String> subjects = engineers.stream()
+                .map(ExamSchedule::getSubject)
+                .collect(Collectors.toSet());
+        examScheduleRepository.deleteBySubjectIn(subjects);
+        examScheduleRepository.saveAll(engineers);
+        log.info("기사 시험 일정 재동기화 완료: {}건", engineers.size());
     }
 
     @Transactional(readOnly = true)
